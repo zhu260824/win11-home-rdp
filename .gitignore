@@ -1,0 +1,14 @@
+# runtime output
+install-log.txt
+rdp-diagnostics.txt
+unlock-result.txt
+*.log
+
+# downloaded binaries / staging
+*.zip
+tools/__pycache__/
+*.pyc
+
+# editors
+.vscode/
+.idea/
