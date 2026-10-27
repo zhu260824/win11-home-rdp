@@ -99,7 +99,7 @@ python tools/verify-offsets.py --dll C:\Windows\System32\termsrv.dll --ini offse
 
 ## 许可
 
-[MIT](LICENSE)。RDP Wrapper 本体版权归 Stas'M，本项目不分发其二进制文件，安装时从官方发布页获取。
+[MIT](LICENSE)。RDP Wrapper 本体版权归 Stas'M，本项目不分发其二进制文件，安装时从官方发布页获取。第三方组件与免责说明见 [THIRD-PARTY.md](THIRD-PARTY.md)。
 
 ## English
 
