@@ -79,6 +79,26 @@ net accounts          # 查看 Lockout threshold
 
 注意：**改锁定策略会立即重新评估**已累计的失败次数。把阈值临时调高再调回，可能让计数已超阈值的账户立刻被锁。安全做法是等观察窗口（默认 10 分钟）过去，计数自然清零。
 
+## 断开后物理显示器黑屏
+
+用了几天后可能出现：关掉 RDP 连接，隔一夜回到机器前，接 HDMI 的显示器黑屏无信号，插拔几次才恢复。
+
+原因不是显示器或线材，而是**远程会话与物理控制台是两个独立会话**，断开后会话保留在「已断开」状态，
+没人把它接回物理显示输出。完整分析、修复脚本与验证方法见
+**[CONSOLE-HANDOFF.md](CONSOLE-HANDOFF.md)**。
+
+快速处理：
+
+```powershell
+# 恢复被精简版镜像删掉的 tscon / qwinsta 等工具
+.\scripts\Restore-SessionTools.ps1
+
+# 注册计划任务：断开后 45 秒自动把会话交还控制台
+.\scripts\Install-ConsoleHandoffTask.ps1
+```
+
+应急热键（在物理机前）：`Win + Ctrl + Shift + B` 重启显卡驱动；`Ctrl + Alt + Del`；`Win + L`。
+
 ## 连上后本地被锁屏
 
 这是**预期行为**，不是 bug。客户端 SKU 的 RDP 是单会话：远程接管桌面时，本地会话被锁。

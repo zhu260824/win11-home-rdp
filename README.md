@@ -80,11 +80,17 @@ RDPWInst 检测到的版本 : 10.0.26100.9549     ← 补丁实际按这个查�
 ## 目录结构
 
 ```
-scripts/   安装、检测、诊断脚本（PowerShell 5.1+，需管理员）
+scripts/   安装、检测、诊断、会话交还脚本（PowerShell 5.1+，需管理员）
 offsets/   按版本存放的 rdpwrap.ini 片段
 tools/     偏移校验工具（Python）
 docs/      原理、偏移定位方法、故障排查
 ```
+
+## 断开后物理屏黑屏？
+
+RDP 断开后会话保留在「已断开」状态，物理控制台停在登录界面，HDMI 显示器会没有画面。
+这不是显示器或显卡故障，`tscon` 一句命令就能把画面交还控制台，
+本项目提供了恢复工具与自动化的计划任务：见 **[docs/CONSOLE-HANDOFF.md](docs/CONSOLE-HANDOFF.md)**。
 
 ## 校验偏移是否可信
 

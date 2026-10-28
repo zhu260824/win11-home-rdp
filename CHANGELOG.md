@@ -1,5 +1,27 @@
 # 变更记录
 
+## 未发布
+
+### 新增
+
+- **`scripts/Restore-SessionTools.ps1`** — 从 WinSxS 恢复被精简镜像删除的
+  `tscon` / `tsdiscon` / `tskill` / `query` / `quser` / `qwinsta`
+- **`scripts/Send-SessionToConsole.ps1`** — 用 `tscon` 把 RDP 会话交还物理控制台
+- **`scripts/Install-ConsoleHandoffTask.ps1`** — 注册计划任务，在会话断开事件（ID 24）
+  后 45 秒自动交还
+- **`docs/CONSOLE-HANDOFF.md`** — 断开后物理屏黑屏的原因、修复与验证方法
+
+### 为什么需要
+
+RDP 断开后远程会话保留在「已断开」状态，物理控制台停在登录界面，
+导致 HDMI 显示器没有画面。实测事件序列（2026-10-28）：
+
+```
+21:03:31  事件 24  会话 1 已断开连接
+21:11:40  tscon 交还会话 1 -> console，返回成功
+21:11:41  事件 25  会话 ID: 1 源网络地址: 本地      ← 已接回控制台
+```
+
 ## v1.0.0 — 2026-10-27
 
 首次发布。在 Windows 11 家庭版（26H2 / `26300.9711`）上启用原生 RDP 服务端，
