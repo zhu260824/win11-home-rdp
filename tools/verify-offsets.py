@@ -124,14 +124,48 @@ def count_rip_refs(pe: PE, target_rva: int, limit: int = 20) -> int:
     return hits
 
 
+def fixed_file_version(data: bytes) -> str:
+    """Read VS_FIXEDFILEINFO - the version RDP Wrapper keys offsets on.
+
+    The FileVersion string in Explorer can stay unchanged across a servicing
+    update while this value moves, so it is the only reliable lookup key.
+    """
+    sig = b"\xbd\x04\xef\xfe"
+    at = data.find(sig)
+    if at < 0:
+        return "unknown"
+    ms, ls = struct.unpack_from("<II", data, at + 8)
+    return "{}.{}.{}.{}".format(
+        (ms >> 16) & 0xFFFF, ms & 0xFFFF,
+        (ls >> 16) & 0xFFFF, ls & 0xFFFF,
+    )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dll", default=r"C:\Windows\System32\termsrv.dll")
-    ap.add_argument("--ini", required=True)
+    ap.add_argument("--ini", default=None,
+                    help="offset table to verify; omit together with --version")
     ap.add_argument("--section", default=None)
+    ap.add_argument("--version", action="store_true",
+                    help="print the termsrv.dll fixed version and exit")
     args = ap.parse_args()
 
-    pe = PE(open(args.dll, "rb").read())
+    raw = open(args.dll, "rb").read()
+    if args.version:
+        print(f"dll           : {args.dll}")
+        print(f"fixed version : {fixed_file_version(raw)}   <- rdpwrap lookup key")
+        try:
+            import win32api  # noqa: F401  (optional, only for the display string)
+        except Exception:
+            pass
+        return 0
+
+    if not args.ini:
+        ap.error("--ini is required unless --version is used")
+
+    pe = PE(raw)
+    print(f"termsrv fixed version: {fixed_file_version(raw)}")
     sections = parse_ini(args.ini)
     main_sec, slinit_sec = pick_section(sections, args.section)
     main = sections[main_sec]

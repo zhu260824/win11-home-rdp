@@ -28,14 +28,31 @@ $RepoRoot = Split-Path -Parent $Base
 if (-not $OffsetDir) { $OffsetDir = Join-Path $RepoRoot 'offsets' }
 
 $dll = Join-Path $env:SystemRoot 'System32\termsrv.dll'
-$ver = (Get-Item $dll).VersionInfo.FileVersion.Split(' ')[0]
+
+# RDP Wrapper keys offsets on VS_FIXEDFILEINFO, not on the FileVersion string.
+$bytes = [System.IO.File]::ReadAllBytes($dll)
+$ver = $null
+for ($i = 0; $i -le $bytes.Length - 16; $i++) {
+    if ($bytes[$i] -eq 0xBD -and $bytes[$i+1] -eq 0x04 -and
+        $bytes[$i+2] -eq 0xEF -and $bytes[$i+3] -eq 0xFE) {
+        $ms = [BitConverter]::ToUInt32($bytes, $i + 8)
+        $ls = [BitConverter]::ToUInt32($bytes, $i + 12)
+        $ver = '{0}.{1}.{2}.{3}' -f (($ms -shr 16) -band 0xFFFF), ($ms -band 0xFFFF),
+                                      (($ls -shr 16) -band 0xFFFF), ($ls -band 0xFFFF)
+        break
+    }
+}
+if (-not $ver) { $ver = (Get-Item $dll).VersionInfo.FileVersion.Split(' ')[0] }
+$strVer = (Get-Item $dll).VersionInfo.FileVersion
+
 $kv  = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 
 Write-Host ''
 Write-Host ('=' * 70)
 Write-Host " edition     : $($kv.ProductName) ($($kv.EditionID))"
 Write-Host " build       : $($kv.CurrentBuild).$($kv.UBR)"
-Write-Host " termsrv.dll : $ver"
+Write-Host " fixed ver   : $ver        <-- lookup key used by rdpwrap" -ForegroundColor Cyan
+Write-Host " display ver : $strVer     (cosmetic, can differ)"
 Write-Host ('=' * 70)
 
 $sources = @()
@@ -45,13 +62,25 @@ if ($IniPath) {
     $sources += $IniPath
 } else {
     $tmp = Join-Path $env:TEMP 'rdpwrap-check.ini'
-    $a = @{ Uri = $IniUrl; OutFile = $tmp; UseBasicParsing = $true; TimeoutSec = 90 }
-    if ($Proxy) { $a['Proxy'] = $Proxy }
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    try { Invoke-WebRequest @a | Out-Null; $sources += $tmp }
-    catch {
-        Write-Host " [!] download failed: $($_.Exception.Message)" -ForegroundColor Yellow
-        Write-Host '     Download rdpwrap.ini manually and pass -IniPath.'
+    $urls = @(
+        $IniUrl,
+        'https://ghfast.top/https://raw.githubusercontent.com/sebaxakerhtc/rdpwrap.ini/master/rdpwrap.ini',
+        'https://gh-proxy.com/https://raw.githubusercontent.com/sebaxakerhtc/rdpwrap.ini/master/rdpwrap.ini'
+    )
+    $got = $false
+    foreach ($u in ($urls | Select-Object -Unique)) {
+        $a = @{ Uri = $u; OutFile = $tmp; UseBasicParsing = $true; TimeoutSec = 90 }
+        if ($Proxy) { $a['Proxy'] = $Proxy }
+        try {
+            Invoke-WebRequest @a | Out-Null
+            if ((Get-Item $tmp).Length -gt 10000) { $sources += $tmp; $got = $true; break }
+        } catch {
+            Write-Host " [!] $u -> $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+    if (-not $got) {
+        Write-Host '     All sources failed. Download rdpwrap.ini manually and pass -IniPath.'
     }
 }
 

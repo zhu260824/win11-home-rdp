@@ -4,14 +4,26 @@
 
 ## 先确认版本
 
-**不要用文件属性判断**。看补丁工具自己报的版本：
+**不要用文件属性判断**。配置表的查表键是 PE 里的固定版本，
+而文件属性显示的是 `FileVersion` 字符串——**两者可以不一致**，
+系统更新后出现「属性没变但补丁失效」就是这种情况。
+
+直接读固定版本（推荐，无副作用）：
+
+```bash
+python tools/verify-offsets.py --version
+# fixed version : 10.0.26100.9818   <- rdpwrap lookup key
+```
+
+或者看补丁工具自己报的版本（注意 `-i` 会执行安装动作）：
 
 ```powershell
 & "C:\Program Files\RDP Wrapper\RDPWInst.exe" -i
-# [*] Terminal Services version: 10.0.26100.9549
+# [*] Terminal Services version: 10.0.26100.9818
 ```
 
-这一行才是配置表的查表键。
+这一行才是配置表的查表键。顺手对比一下 `termsrv.dll` 的修改时间，
+如果它不是你以为的那次安装时间，说明文件被系统更新换过了。
 
 ## 路线一：自动工具（推荐）
 

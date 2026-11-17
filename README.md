@@ -62,27 +62,45 @@ RDP Wrapper 把 `TermService` 的 `ServiceDll` 从 `termsrv.dll` 换成自己的
 
 ## 偏移从哪来
 
-社区配置库 [sebaxakerhtc/rdpwrap.ini](https://github.com/sebaxakerhtc/rdpwrap.ini) 维护了数百个版本段。若你的版本没被收录，可以用 [llccd/RDPWrapOffsetFinder](https://github.com/llccd/RDPWrapOffsetFinder) 自动生成，或按 [docs/OFFSET-FINDING.md](docs/OFFSET-FINDING.md) 手工定位并校验。
+**优先用上游配置库** [sebaxakerhtc/rdpwrap.ini](https://github.com/sebaxakerhtc/rdpwrap.ini)，
+它维护了数百个版本段，绝大多数情况直接覆盖。只有确认真实缺版本时，才自己生成片段放进
+`offsets/`，方法见 [docs/OFFSET-FINDING.md](docs/OFFSET-FINDING.md)。
 
-本仓库 `offsets/` 目录存放我们实测通过、且上游尚未收录的版本段。
+### 版本号陷阱（本项目踩过）
 
-### 一个容易踩的坑
-
-`termsrv.dll` 的**文件版本字符串**与 **PE 固定版本信息**可能不一致：
+RDP Wrapper 查表用的是 PE 里的 **`VS_FIXEDFILEINFO`（固定版本）**，
+不是文件属性里显示的 `FileVersion` 字符串。Windows 更新可以把固定版本改掉而字符串不变：
 
 ```
-FileVersion          : 10.0.26100.9949     ← 属性里看到的值
-RDPWInst 检测到的版本 : 10.0.26100.9549     ← 补丁实际按这个查表
+文件属性 FileVersion    : 10.0.26100.9949    ← 看着没变
+固定版本（查表键）      : 10.0.26100.9818    ← 实际变了，补丁失效
 ```
 
-判断该用哪个 ini 段时，**以 `RDPWInst -i` 输出里 `Terminal Services version:` 那一行为准**，而不是文件属性。详见 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#版本对不上)。
+结果就是 `TermService` 正常、`ServiceDll` 正常，但 **3389 不再监听**。
+
+自己判断时用这个（不依赖补丁工具）：
+
+```bash
+python tools/verify-offsets.py --version
+```
+
+## 系统更新后 RDP 失效？
+
+典型症状：3389 不监听，`TermService` 却在运行。一条命令修复：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\Repair-RdpWrapper.ps1
+```
+
+它会读固定版本 → 下载上游配置库（含镜像回退）→ 检查覆盖 → 备份 → 部署 →
+重启服务 → 用真实的 X.224 握手验证。加 `-Preflight` 只诊断不改动。
 
 ## 目录结构
 
 ```
-scripts/   安装、检测、诊断、会话交还脚本（PowerShell 5.1+，需管理员）
-offsets/   按版本存放的 rdpwrap.ini 片段
-tools/     偏移校验工具（Python）
+scripts/   安装、检测、诊断、修复、会话交还脚本（PowerShell 5.1+，需管理员）
+offsets/   本机实测且上游未收录的片段（当前为空，原因见该目录 README）
+tools/     偏移校验与版本查询工具（Python）
 docs/      原理、偏移定位方法、故障排查
 ```
 

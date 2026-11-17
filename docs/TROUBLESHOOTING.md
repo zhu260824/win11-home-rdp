@@ -125,13 +125,49 @@ Add-MpPreference -ExclusionPath "$env:ProgramFiles\RDP Wrapper"
 
 ## 系统更新后失效
 
-这是常态。特征：`3389` 仍在监听但没有补丁效果，`RDPWInst -i` 报版本不支持。
+这是常态——**每次累积更新都可能让 RDP 失效**。先认准症状：
 
-处置流程：
+| 症状 | 含义 |
+|---|---|
+| `TermService` 在跑，但 3389 **不监听** | 补丁没生效（最典型） |
+| 3389 在听，但连接被拒 | 补丁部分生效，检查 `fDenyTSConnections` 与策略 |
+| `RDPWInst -i` 报 `This version of Terminal Services is not supported` | 配置库缺这个版本 |
 
-1. `Check-RdpWrapSupport.ps1` 看上游有没有新段；
-2. 没有就按 [OFFSET-FINDING.md](OFFSET-FINDING.md) 自己取；
-3. 重新安装（脚本会重新部署 ini 并重启服务）。
+### 关键：查表用的是「固定版本」
+
+补丁按 PE 的 `VS_FIXEDFILEINFO` 查表，**不是文件属性里的 `FileVersion`**。
+Windows 更新可以让固定版本变化而字符串保持不变，这时从属性上看"没变"，实际已经失效：
+
+```
+文件属性 FileVersion : 10.0.26100.9949    ← 可能一直不变
+固定版本（查表键）   : 10.0.26100.9818    ← 真正决定成败
+```
+
+查固定版本（不依赖补丁工具）：
+
+```bash
+python tools/verify-offsets.py --version
+```
+
+### 一条命令修复
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\Repair-RdpWrapper.ps1
+```
+
+流程：读固定版本 → 下载上游配置库（GitHub + 镜像回退）→ 检查是否覆盖 →
+备份旧 ini → 部署 → 重启 `TermService` → 用真实 X.224 握手确认服务真的应答。
+
+- 加 `-Preflight` 只诊断，不改动
+- 加 `-Proxy http://127.0.0.1:7890` 走代理下载
+- 上游还没收录该版本时返回码 `2`，此时才需要自己取偏移：
+  见 [OFFSET-FINDING.md](OFFSET-FINDING.md)
+
+### 如果修完仍然不通
+
+1. 用 `Get-RdpDiagnostics.ps1` 收集状态
+2. 确认 `rdpwrap.dll` 真的加载进服务进程（不是只看 `ServiceDll` 指向）
+3. 检查防火墙与 `fDenyTSConnections`
 
 如果这台机器承担关键用途，考虑换掉这条路线——见 README 开头的说明。
 

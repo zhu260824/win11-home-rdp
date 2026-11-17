@@ -87,7 +87,28 @@ function Invoke-WebDownload {
 }
 
 function Get-TermsrvVersion {
+    <#
+        RDP Wrapper keys its offset lookup on VS_FIXEDFILEINFO, NOT on the
+        FileVersion string shown in Explorer. Windows updates can change the
+        fixed version while leaving the string behind, which silently breaks
+        the patch. Always resolve the fixed version here.
+    #>
     param([string]$DllPath)
+
+    $bytes = [System.IO.File]::ReadAllBytes($DllPath)
+    for ($i = 0; $i -le $bytes.Length - 16; $i++) {
+        if ($bytes[$i] -eq 0xBD -and $bytes[$i+1] -eq 0x04 -and
+            $bytes[$i+2] -eq 0xEF -and $bytes[$i+3] -eq 0xFE) {
+            $ms = [BitConverter]::ToUInt32($bytes, $i + 8)
+            $ls = [BitConverter]::ToUInt32($bytes, $i + 12)
+            $major = ($ms -shr 16) -band 0xFFFF
+            $minor = $ms -band 0xFFFF
+            $build = ($ls -shr 16) -band 0xFFFF
+            $rev   = $ls -band 0xFFFF
+            return "$major.$minor.$build.$rev"
+        }
+    }
+    # fall back to the display string if the resource cannot be parsed
     (Get-Item $DllPath).VersionInfo.FileVersion.Split(' ')[0]
 }
 
